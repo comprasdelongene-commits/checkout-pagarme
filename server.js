@@ -258,7 +258,7 @@ function takeRequestSecret(body) {
 
 app.post('/api/pay', payLimiter, async (req, res) => {
   const body = req.body || {};
-  const { secret, testMode, error: keyError } = takeRequestSecret(body);
+  const { secret, error: keyError } = takeRequestSecret(body);
   if (keyError) {
     return res.status(400).json({ ok: false, error: keyError });
   }
@@ -288,28 +288,15 @@ app.post('/api/pay', payLimiter, async (req, res) => {
 
     if (!r.ok) {
       console.warn(`[pay] pedido ${order.code} rejeitado pela API: HTTP ${r.status}`);
-      const payload = { ok: false, error: apiErrorMessage(r.status, apiBody) };
-      if (testMode) {
-        payload.test_mode = true;
-        payload.title = 'Pagamento recusado';
-        payload.message = payload.error;
-        payload.pagarme = apiBody;
-      }
-      return sendJson(res, r.status >= 500 ? 502 : 400, payload, secret);
+      return sendJson(res, r.status >= 500 ? 502 : 400, { ok: false, error: apiErrorMessage(r.status, apiBody) }, secret);
     }
 
     const result = summarize(apiBody, fallback);
-    if (testMode) {
-      result.test_mode = true;
-      result.pagarme = apiBody;
-    }
     console.log(`[pay] pedido ${result.order_code} -> ${result.approved ? 'aprovado' : result.pending ? 'pendente' : 'recusado'}`);
     return sendJson(res, 200, result, secret);
   } catch (err) {
     console.error(`[pay] falha de comunicação no pedido ${order.code}: ${err.name}`);
-    const payload = { ok: false, error: 'Falha de comunicação com o processador. Tente novamente.' };
-    if (testMode) payload.test_mode = true;
-    return sendJson(res, 502, payload, secret);
+    return sendJson(res, 502, { ok: false, error: 'Falha de comunicação com o processador. Tente novamente.' }, secret);
   }
 });
 

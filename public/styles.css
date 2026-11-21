@@ -7,7 +7,6 @@ body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-s
 .card-box{background:var(--card);border-radius:var(--radius);box-shadow:0 4px 24px rgba(20,30,60,.08);padding:20px}
 section+section{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
 h2{font-size:1rem;margin:0 0 12px}
-h3{font-size:.9rem;margin:0 0 8px;text-align:left}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .col-2{grid-column:span 2}
 label{display:flex;flex-direction:column;gap:5px;font-size:.82rem;color:var(--muted);font-weight:600}
@@ -55,6 +54,4 @@ input.invalid{border-color:var(--bad)}
 .card-scenario{display:block;font-size:.75rem;color:var(--muted);font-weight:400;margin-top:2px;line-height:1.35}
 .copy-btn{flex-shrink:0;font:inherit;font-size:.75rem;font-weight:700;padding:6px 10px;border:1px solid var(--test-line);border-radius:8px;background:#fff;color:var(--test);cursor:pointer}
 .copy-btn:active{background:var(--test-line)}
-.raw-wrap{margin-top:18px;text-align:left}
-.raw-json{margin:0;background:#0f1728;color:#e7ecf5;padding:12px;border-radius:10px;overflow:auto;font-size:.72rem;line-height:1.45;max-height:360px;white-space:pre-wrap;word-break:break-word;text-align:left;font-family:ui-monospace,Menlo,monospace}
 @media (max-width:420px){.grid{grid-template-columns:1fr}.col-2{grid-column:span 1}.card-list li{flex-wrap:wrap}.copy-btn{margin-left:auto}}

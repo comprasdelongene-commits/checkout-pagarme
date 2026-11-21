@@ -225,10 +225,6 @@
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
-      if (data.test_mode && data.pagarme) {
-        showResult(data);
-        return;
-      }
       if (!res.ok || !data.ok) throw new Error(data.error || 'Não foi possível concluir o pagamento.');
       showResult(data);
     } catch (err) {
@@ -243,18 +239,16 @@
     $('checkout').hidden = true;
     $('result').hidden = false;
     const icon = $('result-icon');
-    const approved = !!r.approved;
-    const pending = !!r.pending;
-    icon.className = 'result-icon ' + (approved ? 'ok' : pending ? 'wait' : 'bad');
-    icon.textContent = approved ? '✓' : pending ? '…' : '✕';
-    $('result-title').textContent = r.title || (approved ? 'Pagamento aprovado' : 'Pagamento recusado');
-    $('result-message').textContent = approved
+    icon.className = 'result-icon ' + (r.approved ? 'ok' : r.pending ? 'wait' : 'bad');
+    icon.textContent = r.approved ? '✓' : r.pending ? '…' : '✕';
+    $('result-title').textContent = r.title;
+    $('result-message').textContent = r.approved
       ? 'Obrigado! Seu pagamento foi confirmado.'
-      : (r.message || r.error || '');
+      : r.message;
     const rows = [
       ['Pedido', r.order_code],
       ['Produto', r.product],
-      ['Valor', r.amount != null ? brl(r.amount) : null],
+      ['Valor', brl(r.amount)],
       ['Parcelas', r.installments ? r.installments + 'x' : null],
       ['Cartão', r.card_brand && r.card_last4 ? `${r.card_brand} final ${r.card_last4}` : null],
       ['Nome na fatura', r.statement_descriptor],
@@ -268,40 +262,11 @@
       const dd = document.createElement('dd'); dd.textContent = v;
       dl.append(dt, dd);
     });
-
-    const rawWrap = $('result-raw-wrap');
-    if (r.test_mode && r.pagarme) {
-      rawWrap.hidden = false;
-      $('result-raw').textContent = JSON.stringify(r.pagarme, null, 2);
-    } else {
-      rawWrap.hidden = true;
-      $('result-raw').textContent = '';
-    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  $('copy-raw-btn').addEventListener('click', async () => {
-    const txt = $('result-raw').textContent || '';
-    if (!txt) return;
-    try {
-      await navigator.clipboard.writeText(txt);
-    } catch {
-      const ta = document.createElement('textarea');
-      ta.value = txt;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      ta.remove();
-    }
-    const btn = $('copy-raw-btn');
-    const prev = btn.textContent;
-    btn.textContent = 'Copiado!';
-    setTimeout(() => { btn.textContent = prev; }, 1800);
-  });
-
   $('new-btn').addEventListener('click', () => {
     $('result').hidden = true;
-    $('result-raw-wrap').hidden = true;
     $('checkout').hidden = false;
     $('checkout').reset();
     $('statement_descriptor').value = 'LOJA';

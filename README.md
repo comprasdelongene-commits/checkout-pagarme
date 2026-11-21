@@ -16,7 +16,7 @@ Na seção **Modo teste (homologação)** cole as chaves de *sandbox* (`pk_test_
 - A chave pública de teste substitui a chave pública de produção na tokenização do cartão.
 - A chave secreta de teste é enviada **só naquela** chamada a `/api/pay` e usada apenas nela. O servidor **não** grava, **não** loga e **não** devolve essa chave. Só é aceito o prefixo `sk_test_`.
 - A cada F5 (ou no botão “Gerar outros dados fictícios”) o formulário é preenchido com dados aleatórios válidos (nome, CPF, e-mail, telefone, endereço, produto e valor). **Só o cartão** (número, validade e CVV) fica para você digitar — há uma lista dos cartões oficiais do [simulador de crédito da Pagar.me](https://docs.pagar.me/docs/simulador-de-cart%C3%A3o-de-cr%C3%A9dito), com botão de copiar.
-- No modo teste a tela de resultado mostra o resumo e o **JSON bruto** devolvido pela Pagar.me, com botão **Copiar retorno**, para enviar ao time da Pagar.me na homologação.
+- A tela de resultado mostra só o resumo amigável (aprovado/recusado, pedido, valor, produto, parcelas, bandeira + final, autorização/TID). O JSON bruto da Pagar.me não é devolvido ao navegador.
 
 Se os dois campos de chave de teste estiverem vazios, o fluxo de produção segue igual ao de sempre (`PAGARME_SECRET_KEY` no servidor).
 

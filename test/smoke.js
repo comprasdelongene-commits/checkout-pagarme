@@ -90,7 +90,7 @@ function start(port, env) {
     assert.ok(!cc.card.number && !cc.card.cvv, 'nenhum PAN/CVV no pedido');
     assert.strictEqual(cc.card.billing_address.state, 'SP');
     assert.strictEqual(lastOrder.customer.phones.mobile_phone.area_code, '11');
-    assert.ok(!('customer' in j) && !('charges' in j) && !j.pagarme && !j.test_mode, 'sem JSON bruto para o cliente no fluxo de produção');
+    assert.ok(!('customer' in j) && !('charges' in j) && !('pagarme' in j) && !('test_mode' in j), 'sem JSON bruto para o cliente');
     assert.strictEqual(j.tid, '42462901398052'); assert.strictEqual(j.card_last4, '1111');
     assert.strictEqual(lastOrder.antifraud_enabled, false);
     console.log('✓ aprovado (mock):', JSON.stringify(j));
@@ -98,7 +98,7 @@ function start(port, env) {
     mode = 'declined';
     j = await (await post(base, validBody)).json();
     assert.strictEqual(j.approved, false); assert.strictEqual(j.tid, null);
-    assert.ok(!j.test_mode && !j.pagarme, 'fluxo de produção continua sem JSON bruto');
+    assert.ok(!('pagarme' in j) && !('test_mode' in j) && !('customer' in j) && !('charges' in j), 'sem JSON bruto para o cliente');
     console.log('✓ recusado (mock):', j.title, '-', j.message);
 
     mode = 'paid';
@@ -115,14 +115,13 @@ function start(port, env) {
     const rawText = await r.text();
     j = JSON.parse(rawText);
     assert.strictEqual(r.status, 200); assert.strictEqual(j.approved, true);
-    assert.strictEqual(j.test_mode, true);
-    assert.ok(j.pagarme && j.pagarme.charges, 'modo teste devolve o JSON bruto da Pagar.me');
-    assert.strictEqual(j.pagarme.id, 'or_mock');
+    assert.ok(!('pagarme' in j) && !('test_mode' in j) && !('customer' in j) && !('charges' in j), 'modo teste também não devolve JSON bruto');
+    assert.strictEqual(j.tid, '42462901398052');
     assert.strictEqual(lastAuth, 'Basic ' + Buffer.from(TEST_SECRET + ':').toString('base64'), 'usou a chave de teste da requisição, não a do ambiente');
     assert.ok(lastOrder !== orderBefore);
     assert.ok(!rawText.includes(TEST_SECRET), 'segredo de teste não volta na resposta');
     assert.ok(!JSON.stringify(j).includes(TEST_SECRET));
-    console.log('✓ modo teste: chave por requisição, JSON bruto presente, segredo não ecoado');
+    console.log('✓ modo teste: chave por requisição, só o resumo amigável, segredo não ecoado');
 
     assert.ok(!app.logs.includes(DUMMY_SECRET), 'segredo de ambiente não aparece nos logs');
     assert.ok(!app.logs.includes(TEST_SECRET), 'segredo de teste não aparece nos logs');
@@ -141,8 +140,8 @@ function start(port, env) {
     const rawText = await r.text();
     const j = JSON.parse(rawText);
     assert.strictEqual(r.status, 200);
-    assert.strictEqual(j.test_mode, true);
     assert.strictEqual(j.approved, true);
+    assert.ok(!('pagarme' in j) && !('test_mode' in j) && !('charges' in j), 'sem JSON bruto mesmo usando chave de teste');
     assert.strictEqual(lastAuth, 'Basic ' + Buffer.from(TEST_SECRET + ':').toString('base64'));
     assert.ok(!rawText.includes(TEST_SECRET));
     assert.ok(!noKey.logs.includes(TEST_SECRET), 'segredo de teste não aparece nos logs (instância sem env)');
