@@ -131,6 +131,7 @@ function validate(body) {
 
 function buildOrder(d) {
   return {
+    antifraud_enabled: false,
     code: `PED-${randDigits(8)}`,
     items: [
       { amount: d.amount, description: d.productName, quantity: 1, code: `SKU-${randDigits(6)}` },
@@ -148,7 +149,6 @@ function buildOrder(d) {
     payments: [
       {
         payment_method: 'credit_card',
-        antifraud_enabled: false,
         credit_card: {
           installments: d.installments,
           statement_descriptor: d.descriptor,
