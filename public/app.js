@@ -361,10 +361,15 @@
     return stripAccents(s).toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '');
   }
 
+  const EMAIL_DOMAINS = ['gmail.com', 'outlook.com', 'hotmail.com'];
+  function makeEmail(first, last) {
+    return `${slug(first)}.${slug(last)}.${randInt(100, 999)}@${pick(EMAIL_DOMAINS)}`;
+  }
+
   function localPerson() {
     const first = pick(FIRST_NAMES);
     const last = pick(LAST_NAMES);
-    return { first, last, email: `${slug(first)}.${slug(last)}.${randInt(100, 999)}@exemplo.com` };
+    return { first, last, email: makeEmail(first, last) };
   }
 
   async function fetchPerson() {
@@ -380,10 +385,7 @@
       const first = String(u.name.first || '').trim();
       const last = String(u.name.last || '').trim();
       if (!first || !last) throw new Error('fail');
-      const email = typeof u.email === 'string' && u.email.includes('@')
-        ? u.email
-        : `${slug(first)}.${slug(last)}.${randInt(100, 999)}@exemplo.com`;
-      return { first, last, email };
+      return { first, last, email: makeEmail(first, last) };
     } catch {
       return localPerson();
     }

@@ -56,7 +56,7 @@ function start(port, env) {
     let r = await fetch(base + '/');
     const html = await r.text();
     assert.strictEqual(r.status, 200); assert.ok(html.includes('id="checkout"'));
-    assert.ok(html.includes('Modo teste / homologação'));
+    assert.ok(html.includes('test_public_key'));
     assert.ok(html.includes('id="test_secret_key"') && html.includes('type="password"'));
     const csp = r.headers.get('content-security-policy') || '';
     assert.ok(csp.includes('https://api.pagar.me'));

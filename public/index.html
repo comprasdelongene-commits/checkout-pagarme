@@ -15,7 +15,6 @@
 
     <form id="checkout" class="card-box" novalidate autocomplete="on">
       <section class="test-box" id="test-section">
-        <h2>Modo teste / homologação</h2>
         <p class="test-note">Cole suas chaves da Pagar.me (<code>pk_</code> / <code>sk_</code>) — de <strong>teste</strong> ou de <strong>produção</strong> para a homologação. <strong>Atenção:</strong> com chave de produção a transação é real. A chave secreta é enviada só nesta requisição, não é gravada no servidor. Deixe os dois campos em branco para usar o fluxo de produção padrão (chave do servidor).</p>
         <div class="grid">
           <label class="col-2">Chave pública (pk_)
@@ -30,69 +29,6 @@
           <span class="muted"> · a cada F5 os dados mudam; só o cartão você digita</span>
         </p>
 
-        <details class="test-cards" id="test-cards" open>
-          <summary>Cartões de teste oficiais da Pagar.me</summary>
-          <p class="test-note">Fonte: <a href="https://docs.pagar.me/docs/simulador-de-cart%C3%A3o-de-cr%C3%A9dito" target="_blank" rel="noopener">Simulador de Cartão de Crédito</a>. Use validade futura (ex.: 12/29) e um CVV qualquer (ex.: 123).</p>
-          <ul class="card-list">
-            <li>
-              <div>
-                <code class="card-num" data-card="4000000000000010">4000 0000 0000 0010</code>
-                <span class="card-scenario">Sucesso — qualquer operação é aprovada (capturado/pago)</span>
-              </div>
-              <button type="button" class="copy-btn" data-copy="4000000000000010">Copiar</button>
-            </li>
-            <li>
-              <div>
-                <code class="card-num" data-card="4000000000000028">4000 0000 0000 0028</code>
-                <span class="card-scenario">Falha — transação não autorizada</span>
-              </div>
-              <button type="button" class="copy-btn" data-copy="4000000000000028">Copiar</button>
-            </li>
-            <li>
-              <div>
-                <code class="card-num" data-card="4000000000000036">4000 0000 0000 0036</code>
-                <span class="card-scenario">Processing → Sucesso — começa pendente e depois é pago</span>
-              </div>
-              <button type="button" class="copy-btn" data-copy="4000000000000036">Copiar</button>
-            </li>
-            <li>
-              <div>
-                <code class="card-num" data-card="4000000000000044">4000 0000 0000 0044</code>
-                <span class="card-scenario">Processing → Falha — começa pendente e depois falha</span>
-              </div>
-              <button type="button" class="copy-btn" data-copy="4000000000000044">Copiar</button>
-            </li>
-            <li>
-              <div>
-                <code class="card-num" data-card="4000000000000077">4000 0000 0000 0077</code>
-                <span class="card-scenario">Sucesso → Processing → Sucesso — no cancelamento, termina estornado</span>
-              </div>
-              <button type="button" class="copy-btn" data-copy="4000000000000077">Copiar</button>
-            </li>
-            <li>
-              <div>
-                <code class="card-num" data-card="4000000000000093">4000 0000 0000 0093</code>
-                <span class="card-scenario">Sucesso → Processing → volta ao sucesso da 1ª operação</span>
-              </div>
-              <button type="button" class="copy-btn" data-copy="4000000000000093">Copiar</button>
-            </li>
-            <li>
-              <div>
-                <code class="card-num" data-card="4000000000000051">4000 0000 0000 0051</code>
-                <span class="card-scenario">Processing → Cancelado — termina estornado</span>
-              </div>
-              <button type="button" class="copy-btn" data-copy="4000000000000051">Copiar</button>
-            </li>
-            <li>
-              <div>
-                <code class="card-num" data-card="4000000000000069">4000 0000 0000 0069</code>
-                <span class="card-scenario">Pago → Chargeback — depois muda para chargedback</span>
-              </div>
-              <button type="button" class="copy-btn" data-copy="4000000000000069">Copiar</button>
-            </li>
-          </ul>
-          <p class="test-note">Qualquer outro número retorna “não autorizada”. Se a sua conta for PSP, confira também as regras de CVV/documento no <a href="https://docs.pagar.me/docs/simulador-psp" target="_blank" rel="noopener">Simulador PSP</a>.</p>
-        </details>
       </section>
 
       <section>
