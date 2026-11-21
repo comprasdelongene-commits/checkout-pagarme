@@ -10,10 +10,30 @@ const PORT = process.env.PORT || 3000;
 // Base da API (pode ser trocada só para testes locais com mock).
 const PAGARME_API_BASE = process.env.PAGARME_API_BASE || 'https://api.pagar.me/core/v5';
 
-// A chave secreta é lida SOMENTE da variável de ambiente. Nunca é logada nem enviada ao front.
+// A chave secreta de produção é lida SOMENTE da variável de ambiente. Nunca é logada nem enviada ao front.
 function getSecretKey() {
   const k = process.env.PAGARME_SECRET_KEY;
   return k && k.trim() ? k.trim() : null;
+}
+
+const TEST_SECRET_RE = /^sk_test_[A-Za-z0-9_-]+$/;
+
+// Remove qualquer ocorrência do segredo de um valor (string ou estrutura), para nunca ecoá-lo.
+function scrubSecret(value, secret) {
+  if (!secret) return value;
+  if (typeof value === 'string') return value.split(secret).join('[redacted]');
+  if (Array.isArray(value)) return value.map((v) => scrubSecret(v, secret));
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) out[k] = scrubSecret(v, secret);
+    return out;
+  }
+  return value;
+}
+
+function sendJson(res, status, payload, secret) {
+  const text = scrubSecret(JSON.stringify(payload), secret);
+  res.status(status).type('json').send(text);
 }
 
 const app = express();
@@ -28,7 +48,8 @@ app.use(
         styleSrc: ["'self'"],
         imgSrc: ["'self'", 'data:'],
         // O navegador fala direto com a Pagar.me só para tokenizar o cartão.
-        connectSrc: ["'self'", 'https://api.pagar.me'],
+        // randomuser.me é usado no modo teste para preencher dados fictícios.
+        connectSrc: ["'self'", 'https://api.pagar.me', 'https://randomuser.me'],
         formAction: ["'self'"],
         frameAncestors: ["'none'"],
       },
@@ -173,7 +194,7 @@ const STATUS_PT = {
   with_error: 'Erro ao processar o pagamento',
 };
 
-// Resultado limpo para o cliente (nada de JSON bruto).
+// Resultado limpo para o cliente (nada de JSON bruto no fluxo de produção).
 function summarize(order, fallback) {
   const charge = (order.charges && order.charges[0]) || {};
   const tx = charge.last_transaction || {};
@@ -217,14 +238,36 @@ function apiErrorMessage(status, body) {
   return 'Não foi possível processar o pagamento agora. Tente novamente em instantes.';
 }
 
+// Extrai a chave de teste do body (se houver), apaga o campo e valida o prefixo sk_test_.
+// A chave só vive nesta requisição: nunca é logada, gravada ou devolvida.
+function takeRequestSecret(body) {
+  const raw = body && typeof body.test_secret_key === 'string' ? body.test_secret_key.trim() : '';
+  if (body && Object.prototype.hasOwnProperty.call(body, 'test_secret_key')) {
+    delete body.test_secret_key;
+  }
+  if (!raw) return { secret: getSecretKey(), testMode: false, error: null };
+  if (!TEST_SECRET_RE.test(raw)) {
+    return {
+      secret: null,
+      testMode: false,
+      error: 'Use apenas uma chave secreta de TESTE (prefixo sk_test_).',
+    };
+  }
+  return { secret: raw, testMode: true, error: null };
+}
+
 app.post('/api/pay', payLimiter, async (req, res) => {
-  const secret = getSecretKey();
+  const body = req.body || {};
+  const { secret, testMode, error: keyError } = takeRequestSecret(body);
+  if (keyError) {
+    return res.status(400).json({ ok: false, error: keyError });
+  }
   if (!secret) {
     console.error('[pay] PAGARME_SECRET_KEY não configurada');
     return res.status(503).json({ ok: false, error: 'Pagamentos indisponíveis no momento (loja não configurada).' });
   }
 
-  const { errors, data } = validate(req.body || {});
+  const { errors, data } = validate(body);
   if (errors.length) return res.status(400).json({ ok: false, error: errors.join(' ') });
 
   const order = buildOrder(data);
@@ -241,19 +284,32 @@ app.post('/api/pay', payLimiter, async (req, res) => {
       body: JSON.stringify(order),
       signal: AbortSignal.timeout(30000),
     });
-    const body = await r.json().catch(() => ({}));
+    const apiBody = await r.json().catch(() => ({}));
 
     if (!r.ok) {
       console.warn(`[pay] pedido ${order.code} rejeitado pela API: HTTP ${r.status}`);
-      return res.status(r.status >= 500 ? 502 : 400).json({ ok: false, error: apiErrorMessage(r.status, body) });
+      const payload = { ok: false, error: apiErrorMessage(r.status, apiBody) };
+      if (testMode) {
+        payload.test_mode = true;
+        payload.title = 'Pagamento recusado';
+        payload.message = payload.error;
+        payload.pagarme = apiBody;
+      }
+      return sendJson(res, r.status >= 500 ? 502 : 400, payload, secret);
     }
 
-    const result = summarize(body, fallback);
+    const result = summarize(apiBody, fallback);
+    if (testMode) {
+      result.test_mode = true;
+      result.pagarme = apiBody;
+    }
     console.log(`[pay] pedido ${result.order_code} -> ${result.approved ? 'aprovado' : result.pending ? 'pendente' : 'recusado'}`);
-    return res.json(result);
+    return sendJson(res, 200, result, secret);
   } catch (err) {
     console.error(`[pay] falha de comunicação no pedido ${order.code}: ${err.name}`);
-    return res.status(502).json({ ok: false, error: 'Falha de comunicação com o processador. Tente novamente.' });
+    const payload = { ok: false, error: 'Falha de comunicação com o processador. Tente novamente.' };
+    if (testMode) payload.test_mode = true;
+    return sendJson(res, 502, payload, secret);
   }
 });
 
@@ -263,4 +319,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, validate, buildOrder, summarize, sanitizeDescriptor, isValidCPF };
+module.exports = { app, validate, buildOrder, summarize, sanitizeDescriptor, isValidCPF, scrubSecret, takeRequestSecret };

@@ -3,15 +3,18 @@
 const http = require('http');
 const assert = require('assert');
 const { spawn } = require('child_process');
+const fs = require('fs');
 const path = require('path');
 
 const DUMMY_SECRET = 'dummy_test_secret_not_real';
-let lastOrder = null, lastAuth = null, mode = 'paid';
+const TEST_SECRET = 'sk_test_SMOKESECRETKEY99XYZ';
+let lastOrder = null, lastAuth = null, mode = 'paid', mockHits = 0;
 
 const mock = http.createServer((req, res) => {
   let b = '';
   req.on('data', (c) => (b += c));
   req.on('end', () => {
+    mockHits += 1;
     lastAuth = req.headers.authorization;
     lastOrder = JSON.parse(b || '{}');
     const tx = mode === 'paid'
@@ -53,9 +56,19 @@ function start(port, env) {
     let r = await fetch(base + '/');
     const html = await r.text();
     assert.strictEqual(r.status, 200); assert.ok(html.includes('id="checkout"'));
-    assert.ok((r.headers.get('content-security-policy') || '').includes('https://api.pagar.me'));
+    assert.ok(html.includes('Modo teste (homologação)'));
+    assert.ok(html.includes('id="test_secret_key"') && html.includes('type="password"'));
+    const csp = r.headers.get('content-security-policy') || '';
+    assert.ok(csp.includes('https://api.pagar.me'));
+    assert.ok(csp.includes('https://randomuser.me'));
     for (const f of ['/app.js', '/styles.css']) assert.strictEqual((await fetch(base + f)).status, 200, f);
-    console.log('✓ página e assets servidos (200), CSP permite api.pagar.me');
+    console.log('✓ página e assets servidos (200), CSP permite api.pagar.me e randomuser.me');
+
+    const appJs = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
+    assert.ok(!/\bsk_(?!test_)/.test(appJs), 'app.js não deve conter chave sk_ de produção');
+    assert.ok(!/sk_test_[A-Za-z0-9_-]{8,}/.test(appJs), 'app.js não deve conter uma chave sk_test_ completa');
+    assert.ok(!/\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14})\b/.test(appJs), 'app.js não deve conter PAN');
+    console.log('✓ app.js sem chave secreta e sem PAN');
 
     r = await post(base, { ...validBody, amount: 12.5 });
     assert.strictEqual(r.status, 400);
@@ -77,25 +90,63 @@ function start(port, env) {
     assert.ok(!cc.card.number && !cc.card.cvv, 'nenhum PAN/CVV no pedido');
     assert.strictEqual(cc.card.billing_address.state, 'SP');
     assert.strictEqual(lastOrder.customer.phones.mobile_phone.area_code, '11');
-    assert.ok(!('customer' in j) && !('charges' in j), 'sem JSON bruto para o cliente');
+    assert.ok(!('customer' in j) && !('charges' in j) && !j.pagarme && !j.test_mode, 'sem JSON bruto para o cliente no fluxo de produção');
     assert.strictEqual(j.tid, '42462901398052'); assert.strictEqual(j.card_last4, '1111');
+    assert.strictEqual(lastOrder.antifraud_enabled, false);
     console.log('✓ aprovado (mock):', JSON.stringify(j));
 
     mode = 'declined';
     j = await (await post(base, validBody)).json();
     assert.strictEqual(j.approved, false); assert.strictEqual(j.tid, null);
+    assert.ok(!j.test_mode && !j.pagarme, 'fluxo de produção continua sem JSON bruto');
     console.log('✓ recusado (mock):', j.title, '-', j.message);
 
-    assert.ok(!app.logs.includes(DUMMY_SECRET), 'segredo não aparece nos logs');
-    console.log('✓ chave secreta não aparece nos logs do servidor');
+    mode = 'paid';
+    const hitsBefore = mockHits;
+    r = await post(base, { ...validBody, test_secret_key: 'sk_nao_e_teste' });
+    j = await r.json();
+    assert.strictEqual(r.status, 400);
+    assert.ok(/sk_test_/.test(j.error));
+    assert.strictEqual(mockHits, hitsBefore, 'chave que não é de teste não deve chamar a API');
+    console.log('✓ chave secreta sem prefixo sk_test_ é recusada (400), API não é chamada');
+
+    const orderBefore = lastOrder;
+    r = await post(base, { ...validBody, test_secret_key: TEST_SECRET });
+    const rawText = await r.text();
+    j = JSON.parse(rawText);
+    assert.strictEqual(r.status, 200); assert.strictEqual(j.approved, true);
+    assert.strictEqual(j.test_mode, true);
+    assert.ok(j.pagarme && j.pagarme.charges, 'modo teste devolve o JSON bruto da Pagar.me');
+    assert.strictEqual(j.pagarme.id, 'or_mock');
+    assert.strictEqual(lastAuth, 'Basic ' + Buffer.from(TEST_SECRET + ':').toString('base64'), 'usou a chave de teste da requisição, não a do ambiente');
+    assert.ok(lastOrder !== orderBefore);
+    assert.ok(!rawText.includes(TEST_SECRET), 'segredo de teste não volta na resposta');
+    assert.ok(!JSON.stringify(j).includes(TEST_SECRET));
+    console.log('✓ modo teste: chave por requisição, JSON bruto presente, segredo não ecoado');
+
+    assert.ok(!app.logs.includes(DUMMY_SECRET), 'segredo de ambiente não aparece nos logs');
+    assert.ok(!app.logs.includes(TEST_SECRET), 'segredo de teste não aparece nos logs');
+    console.log('✓ chaves secretas não aparecem nos logs do servidor');
   } finally { app.kill(); }
 
   const noKey = start(4601, { PAGARME_SECRET_KEY: '', PAGARME_API_BASE: 'http://127.0.0.1:4599' });
   try {
     await waitUp('http://127.0.0.1:4601/healthz');
-    const r = await post('http://127.0.0.1:4601', validBody);
+    mode = 'paid';
+    let r = await post('http://127.0.0.1:4601', validBody);
     assert.strictEqual(r.status, 503);
-    console.log('✓ sem PAGARME_SECRET_KEY -> 503, sem chamar a API');
+    console.log('✓ sem PAGARME_SECRET_KEY e sem chave de teste -> 503, sem chamar a API');
+
+    r = await post('http://127.0.0.1:4601', { ...validBody, test_secret_key: TEST_SECRET });
+    const rawText = await r.text();
+    const j = JSON.parse(rawText);
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(j.test_mode, true);
+    assert.strictEqual(j.approved, true);
+    assert.strictEqual(lastAuth, 'Basic ' + Buffer.from(TEST_SECRET + ':').toString('base64'));
+    assert.ok(!rawText.includes(TEST_SECRET));
+    assert.ok(!noKey.logs.includes(TEST_SECRET), 'segredo de teste não aparece nos logs (instância sem env)');
+    console.log('✓ sem env, chave de teste na requisição autoriza o pagamento (só aquela chamada)');
   } finally { noKey.kill(); mock.close(); }
   console.log('\nSMOKE TEST OK');
 })().catch((e) => { console.error('FALHOU:', e); process.exit(1); });

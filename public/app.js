@@ -2,13 +2,24 @@
   'use strict';
 
   // Chave PÚBLICA da Pagar.me (pode ficar no front). A secreta fica só no servidor.
+  // No modo teste, a chave pública colada substitui esta na tokenização.
   const PAGARME_PUBLIC_KEY = 'pk_JabK3oRUNgtQY0eV';
-  const TOKENS_URL = 'https://api.pagar.me/core/v5/tokens?appId=' + encodeURIComponent(PAGARME_PUBLIC_KEY);
+  const LS_PK = 'checkout_test_pk';
+  const LS_SK = 'checkout_test_sk';
 
   const $ = (id) => document.getElementById(id);
   const digits = (v) => String(v || '').replace(/\D/g, '');
   const brl = (cents) => (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const stripAccents = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  function testPublicKey() { return ($('test_public_key').value || '').trim(); }
+  function testSecretKey() { return ($('test_secret_key').value || '').trim(); }
+  function isTestMode() { return !!(testPublicKey() && testSecretKey()); }
+
+  function tokensUrl() {
+    const pk = testPublicKey() || PAGARME_PUBLIC_KEY;
+    return 'https://api.pagar.me/core/v5/tokens?appId=' + encodeURIComponent(pk);
+  }
 
   // ---------- máscaras ----------
   function mask(el, fn) { el.addEventListener('input', () => { el.value = fn(el.value); el.classList.remove('invalid'); }); }
@@ -33,6 +44,12 @@
   mask($('state'), (v) => v.replace(/[^a-zA-Z]/g, '').slice(0, 2).toUpperCase());
   mask($('statement_descriptor'), (v) => stripAccents(v).toUpperCase().replace(/[^A-Z0-9 ]/g, '').slice(0, 13));
   mask($('holder_name'), (v) => stripAccents(v).toUpperCase().replace(/[^A-Z ]/g, ''));
+
+  function fill(id, value) {
+    const el = $(id);
+    el.value = value == null ? '' : String(value);
+    el.dispatchEvent(new Event('input'));
+  }
 
   // ---------- bandeira ----------
   function detectBrand(n) {
@@ -105,6 +122,14 @@
     const bad = (id, msg) => { $(id).classList.add('invalid'); errs.push(msg); };
     document.querySelectorAll('.invalid').forEach((el) => el.classList.remove('invalid'));
 
+    const pk = testPublicKey();
+    const sk = testSecretKey();
+    if ((pk && !sk) || (!pk && sk)) {
+      bad(pk ? 'test_secret_key' : 'test_public_key', 'Preencha as duas chaves de teste ou deixe as duas em branco.');
+    }
+    if (pk && !/^pk_test_[A-Za-z0-9_-]+$/.test(pk)) bad('test_public_key', 'A chave pública de teste deve começar com pk_test_.');
+    if (sk && !/^sk_test_[A-Za-z0-9_-]+$/.test(sk)) bad('test_secret_key', 'A chave secreta de teste deve começar com sk_test_. Use apenas chaves de TESTE.');
+
     if ($('product_name').value.trim().length < 2) bad('product_name', 'Informe o produto.');
     if (amountCents() < 100) bad('amount', 'Valor mínimo R$ 1,00.');
     if ($('name').value.trim().split(/\s+/).length < 2) bad('name', 'Informe nome e sobrenome.');
@@ -130,7 +155,7 @@
   // ---------- tokenização (navegador -> Pagar.me, com chave pública) ----------
   async function tokenizeCard(billing) {
     const [mm, yy] = $('card_exp').value.split('/').map(Number);
-    const res = await fetch(TOKENS_URL, {
+    const res = await fetch(tokensUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -177,25 +202,33 @@
       // A partir daqui só o token segue. Limpa número e CVV da tela.
       $('card_number').value = ''; $('card_cvv').value = ''; updatePreview();
 
+      const payload = {
+        product_name: $('product_name').value.trim(),
+        amount: amountCents(),
+        installments: +$('installments').value || 1,
+        statement_descriptor: $('statement_descriptor').value || 'LOJA',
+        card_token: cardToken,
+        customer: {
+          name: $('name').value.trim(),
+          email: $('email').value.trim(),
+          document: digits($('document').value),
+          phone: digits($('phone').value),
+        },
+        billing_address: billing,
+      };
+      const sk = testSecretKey();
+      if (sk) payload.test_secret_key = sk;
+
       const res = await fetch('/api/pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          product_name: $('product_name').value.trim(),
-          amount: amountCents(),
-          installments: +$('installments').value || 1,
-          statement_descriptor: $('statement_descriptor').value || 'LOJA',
-          card_token: cardToken,
-          customer: {
-            name: $('name').value.trim(),
-            email: $('email').value.trim(),
-            document: digits($('document').value),
-            phone: digits($('phone').value),
-          },
-          billing_address: billing,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
+      if (data.test_mode && data.pagarme) {
+        showResult(data);
+        return;
+      }
       if (!res.ok || !data.ok) throw new Error(data.error || 'Não foi possível concluir o pagamento.');
       showResult(data);
     } catch (err) {
@@ -210,16 +243,18 @@
     $('checkout').hidden = true;
     $('result').hidden = false;
     const icon = $('result-icon');
-    icon.className = 'result-icon ' + (r.approved ? 'ok' : r.pending ? 'wait' : 'bad');
-    icon.textContent = r.approved ? '✓' : r.pending ? '…' : '✕';
-    $('result-title').textContent = r.title;
-    $('result-message').textContent = r.approved
+    const approved = !!r.approved;
+    const pending = !!r.pending;
+    icon.className = 'result-icon ' + (approved ? 'ok' : pending ? 'wait' : 'bad');
+    icon.textContent = approved ? '✓' : pending ? '…' : '✕';
+    $('result-title').textContent = r.title || (approved ? 'Pagamento aprovado' : 'Pagamento recusado');
+    $('result-message').textContent = approved
       ? 'Obrigado! Seu pagamento foi confirmado.'
-      : r.message;
+      : (r.message || r.error || '');
     const rows = [
       ['Pedido', r.order_code],
       ['Produto', r.product],
-      ['Valor', brl(r.amount)],
+      ['Valor', r.amount != null ? brl(r.amount) : null],
       ['Parcelas', r.installments ? r.installments + 'x' : null],
       ['Cartão', r.card_brand && r.card_last4 ? `${r.card_brand} final ${r.card_last4}` : null],
       ['Nome na fatura', r.statement_descriptor],
@@ -233,14 +268,192 @@
       const dd = document.createElement('dd'); dd.textContent = v;
       dl.append(dt, dd);
     });
+
+    const rawWrap = $('result-raw-wrap');
+    if (r.test_mode && r.pagarme) {
+      rawWrap.hidden = false;
+      $('result-raw').textContent = JSON.stringify(r.pagarme, null, 2);
+    } else {
+      rawWrap.hidden = true;
+      $('result-raw').textContent = '';
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  $('copy-raw-btn').addEventListener('click', async () => {
+    const txt = $('result-raw').textContent || '';
+    if (!txt) return;
+    try {
+      await navigator.clipboard.writeText(txt);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = txt;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    const btn = $('copy-raw-btn');
+    const prev = btn.textContent;
+    btn.textContent = 'Copiado!';
+    setTimeout(() => { btn.textContent = prev; }, 1800);
+  });
+
   $('new-btn').addEventListener('click', () => {
     $('result').hidden = true;
+    $('result-raw-wrap').hidden = true;
     $('checkout').hidden = false;
     $('checkout').reset();
     $('statement_descriptor').value = 'LOJA';
+    restoreTestKeys();
     updatePreview(); updateTotal();
+    fillFakeData();
   });
+
+  // ---------- chaves de teste (só no navegador) ----------
+  function restoreTestKeys() {
+    try {
+      const pk = localStorage.getItem(LS_PK) || '';
+      const sk = localStorage.getItem(LS_SK) || '';
+      $('test_public_key').value = pk;
+      $('test_secret_key').value = sk;
+    } catch { /* private mode */ }
+  }
+  function persistTestKeys() {
+    try {
+      localStorage.setItem(LS_PK, testPublicKey());
+      localStorage.setItem(LS_SK, testSecretKey());
+    } catch { /* private mode */ }
+  }
+  ['test_public_key', 'test_secret_key'].forEach((id) => {
+    $(id).addEventListener('input', persistTestKeys);
+    $(id).addEventListener('change', persistTestKeys);
+  });
+
+  document.querySelectorAll('.copy-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const num = btn.getAttribute('data-copy') || '';
+      if (!num) return;
+      try { await navigator.clipboard.writeText(num); }
+      catch {
+        const ta = document.createElement('textarea');
+        ta.value = num; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); ta.remove();
+      }
+      const prev = btn.textContent;
+      btn.textContent = 'Copiado!';
+      setTimeout(() => { btn.textContent = prev; }, 1400);
+    });
+  });
+
+  // ---------- dados fictícios (F5 = nova pessoa; cartão nunca é preenchido) ----------
+  const FIRST_NAMES = ['Ana', 'Bruno', 'Camila', 'Diego', 'Eduarda', 'Felipe', 'Gabriela', 'Henrique', 'Isabela', 'Joao', 'Larissa', 'Marcos', 'Natalia', 'Otavio', 'Patricia', 'Rafael', 'Sabrina', 'Thiago', 'Vanessa', 'William'];
+  const LAST_NAMES = ['Silva', 'Santos', 'Oliveira', 'Souza', 'Pereira', 'Costa', 'Rodrigues', 'Almeida', 'Nascimento', 'Lima', 'Araujo', 'Fernandes', 'Carvalho', 'Gomes', 'Martins', 'Rocha', 'Barbosa', 'Ribeiro', 'Alves', 'Mendes'];
+  const PRODUCTS = ['Assinatura mensal', 'Curso online', 'Consultoria', 'Plano Essencial', 'Kit mensal', 'Mentoria individual', 'Licenca anual', 'Workshop', 'Pacote premium', 'Plano Familia', 'Suporte tecnico', 'E-book + comunidade'];
+  const DDDS = ['11', '21', '31', '41', '47', '51', '61', '71', '81', '85'];
+  const PLACES = [
+    { city: 'Sao Paulo', state: 'SP', zip: '01310100', street: 'Avenida Paulista', neighborhood: 'Bela Vista' },
+    { city: 'Sao Paulo', state: 'SP', zip: '05433000', street: 'Rua Teodoro Sampaio', neighborhood: 'Pinheiros' },
+    { city: 'Rio de Janeiro', state: 'RJ', zip: '22041080', street: 'Avenida Atlantica', neighborhood: 'Copacabana' },
+    { city: 'Belo Horizonte', state: 'MG', zip: '30130100', street: 'Avenida Afonso Pena', neighborhood: 'Centro' },
+    { city: 'Curitiba', state: 'PR', zip: '80010000', street: 'Rua XV de Novembro', neighborhood: 'Centro' },
+    { city: 'Porto Alegre', state: 'RS', zip: '90010191', street: 'Rua dos Andradas', neighborhood: 'Centro Historico' },
+    { city: 'Salvador', state: 'BA', zip: '40020000', street: 'Avenida Sete de Setembro', neighborhood: 'Centro' },
+    { city: 'Recife', state: 'PE', zip: '50010240', street: 'Avenida Conde da Boa Vista', neighborhood: 'Boa Vista' },
+    { city: 'Fortaleza', state: 'CE', zip: '60150000', street: 'Avenida Beira Mar', neighborhood: 'Meireles' },
+    { city: 'Brasilia', state: 'DF', zip: '70040902', street: 'Eixo Monumental', neighborhood: 'Zona Civico-Administrativa' },
+    { city: 'Manaus', state: 'AM', zip: '69005040', street: 'Avenida Eduardo Ribeiro', neighborhood: 'Centro' },
+    { city: 'Campinas', state: 'SP', zip: '13010111', street: 'Avenida Francisco Glicerio', neighborhood: 'Centro' },
+    { city: 'Florianopolis', state: 'SC', zip: '88015200', street: 'Rua Felipe Schmidt', neighborhood: 'Centro' },
+    { city: 'Goiania', state: 'GO', zip: '74013010', street: 'Avenida Goias', neighborhood: 'Setor Central' },
+    { city: 'Belem', state: 'PA', zip: '66010000', street: 'Avenida Presidente Vargas', neighborhood: 'Campina' },
+  ];
+
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+  function generateCPF() {
+    const n = [];
+    for (let i = 0; i < 9; i++) n.push(randInt(0, 9));
+    if (n.every((d) => d === n[0])) n[0] = (n[0] + 1) % 10;
+    const calc = (len) => {
+      let sum = 0;
+      for (let i = 0; i < len; i++) sum += n[i] * (len + 1 - i);
+      const r = (sum * 10) % 11;
+      return r === 10 ? 0 : r;
+    };
+    n.push(calc(9));
+    n.push(calc(10));
+    const cpf = n.join('');
+    return isValidCPF(cpf) ? cpf : generateCPF();
+  }
+
+  function generatePhone() {
+    return pick(DDDS) + '9' + String(randInt(10000000, 99999999));
+  }
+
+  function slug(s) {
+    return stripAccents(s).toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '');
+  }
+
+  function localPerson() {
+    const first = pick(FIRST_NAMES);
+    const last = pick(LAST_NAMES);
+    return { first, last, email: `${slug(first)}.${slug(last)}.${randInt(100, 999)}@exemplo.com` };
+  }
+
+  async function fetchPerson() {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 3500);
+      const r = await fetch('https://randomuser.me/api/?nat=br', { signal: ctrl.signal });
+      clearTimeout(t);
+      if (!r.ok) throw new Error('fail');
+      const j = await r.json();
+      const u = j && j.results && j.results[0];
+      if (!u || !u.name) throw new Error('fail');
+      const first = String(u.name.first || '').trim();
+      const last = String(u.name.last || '').trim();
+      if (!first || !last) throw new Error('fail');
+      const email = typeof u.email === 'string' && u.email.includes('@')
+        ? u.email
+        : `${slug(first)}.${slug(last)}.${randInt(100, 999)}@exemplo.com`;
+      return { first, last, email };
+    } catch {
+      return localPerson();
+    }
+  }
+
+  async function fillFakeData() {
+    const person = await fetchPerson();
+    const name = `${person.first} ${person.last}`;
+    const place = pick(PLACES);
+    const number = randInt(10, 2500);
+    const amount = randInt(1500, 25000); // R$ 15,00 a R$ 250,00
+    const product = pick(PRODUCTS);
+
+    fill('product_name', product);
+    fill('amount', String(amount));
+    fill('name', name);
+    fill('email', person.email);
+    fill('document', generateCPF());
+    fill('phone', generatePhone());
+    fill('zip_code', place.zip);
+    fill('state', place.state);
+    fill('line_1', `${number}, ${place.street}, ${place.neighborhood}`);
+    fill('city', place.city);
+    fill('holder_name', name);
+    fill('statement_descriptor', 'LOJA');
+    // Cartão (número, validade, CVV) propositalmente vazio — é o único dado digitado à mão.
+    $('card_number').value = '';
+    $('card_exp').value = '';
+    $('card_cvv').value = '';
+    updatePreview();
+    updateTotal();
+  }
+
+  $('gen-data-btn').addEventListener('click', () => { fillFakeData(); });
+
+  restoreTestKeys();
+  fillFakeData();
 })();
