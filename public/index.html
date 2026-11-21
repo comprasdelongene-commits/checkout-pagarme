@@ -15,14 +15,14 @@
 
     <form id="checkout" class="card-box" novalidate autocomplete="on">
       <section class="test-box" id="test-section">
-        <h2>Modo teste (homologação)</h2>
-        <p class="test-note">Use <strong>apenas chaves de TESTE</strong> (<code>pk_test_</code> / <code>sk_test_</code>). A chave secreta é enviada só nesta requisição, não é gravada no servidor e serve apenas para homologação. Deixe os dois campos em branco para usar o fluxo de produção.</p>
+        <h2>Modo teste / homologação</h2>
+        <p class="test-note">Cole suas chaves da Pagar.me (<code>pk_</code> / <code>sk_</code>) — de <strong>teste</strong> ou de <strong>produção</strong> para a homologação. <strong>Atenção:</strong> com chave de produção a transação é real. A chave secreta é enviada só nesta requisição, não é gravada no servidor. Deixe os dois campos em branco para usar o fluxo de produção padrão (chave do servidor).</p>
         <div class="grid">
-          <label class="col-2">Chave pública de teste
-            <input id="test_public_key" name="test_public_key" type="text" autocomplete="off" spellcheck="false" placeholder="pk_test_…">
+          <label class="col-2">Chave pública (pk_)
+            <input id="test_public_key" name="test_public_key" type="text" autocomplete="off" spellcheck="false" placeholder="pk_test_… ou pk_…">
           </label>
-          <label class="col-2">Chave secreta de teste
-            <input id="test_secret_key" name="test_secret_key" type="password" autocomplete="off" spellcheck="false" placeholder="sk_test_…">
+          <label class="col-2">Chave secreta (sk_)
+            <input id="test_secret_key" name="test_secret_key" type="password" autocomplete="off" spellcheck="false" placeholder="sk_test_… ou sk_…">
           </label>
         </div>
         <p class="test-actions">

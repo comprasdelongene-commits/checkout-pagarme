@@ -56,7 +56,7 @@ function start(port, env) {
     let r = await fetch(base + '/');
     const html = await r.text();
     assert.strictEqual(r.status, 200); assert.ok(html.includes('id="checkout"'));
-    assert.ok(html.includes('Modo teste (homologação)'));
+    assert.ok(html.includes('Modo teste / homologação'));
     assert.ok(html.includes('id="test_secret_key"') && html.includes('type="password"'));
     const csp = r.headers.get('content-security-policy') || '';
     assert.ok(csp.includes('https://api.pagar.me'));
@@ -65,8 +65,7 @@ function start(port, env) {
     console.log('✓ página e assets servidos (200), CSP permite api.pagar.me e randomuser.me');
 
     const appJs = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
-    assert.ok(!/\bsk_(?!test_)/.test(appJs), 'app.js não deve conter chave sk_ de produção');
-    assert.ok(!/sk_test_[A-Za-z0-9_-]{8,}/.test(appJs), 'app.js não deve conter uma chave sk_test_ completa');
+    assert.ok(!/sk_(?:test_|live_)?[A-Za-z0-9]{12,}/.test(appJs), 'app.js não deve conter uma chave secreta real (sk_...)');
     assert.ok(!/\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14})\b/.test(appJs), 'app.js não deve conter PAN');
     console.log('✓ app.js sem chave secreta e sem PAN');
 
@@ -103,12 +102,12 @@ function start(port, env) {
 
     mode = 'paid';
     const hitsBefore = mockHits;
-    r = await post(base, { ...validBody, test_secret_key: 'sk_nao_e_teste' });
+    r = await post(base, { ...validBody, test_secret_key: 'chave_invalida_123' });
     j = await r.json();
     assert.strictEqual(r.status, 400);
-    assert.ok(/sk_test_/.test(j.error));
-    assert.strictEqual(mockHits, hitsBefore, 'chave que não é de teste não deve chamar a API');
-    console.log('✓ chave secreta sem prefixo sk_test_ é recusada (400), API não é chamada');
+    assert.ok(/sk_/.test(j.error));
+    assert.strictEqual(mockHits, hitsBefore, 'chave inválida (sem prefixo sk_) não deve chamar a API');
+    console.log('✓ chave secreta sem prefixo sk_ é recusada (400), API não é chamada');
 
     const orderBefore = lastOrder;
     r = await post(base, { ...validBody, test_secret_key: TEST_SECRET });

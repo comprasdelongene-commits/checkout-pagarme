@@ -127,8 +127,8 @@
     if ((pk && !sk) || (!pk && sk)) {
       bad(pk ? 'test_secret_key' : 'test_public_key', 'Preencha as duas chaves de teste ou deixe as duas em branco.');
     }
-    if (pk && !/^pk_test_[A-Za-z0-9_-]+$/.test(pk)) bad('test_public_key', 'A chave pública de teste deve começar com pk_test_.');
-    if (sk && !/^sk_test_[A-Za-z0-9_-]+$/.test(sk)) bad('test_secret_key', 'A chave secreta de teste deve começar com sk_test_. Use apenas chaves de TESTE.');
+    if (pk && !/^pk_[A-Za-z0-9_-]+$/.test(pk)) bad('test_public_key', 'A chave pública deve começar com pk_.');
+    if (sk && !/^sk_[A-Za-z0-9_-]+$/.test(sk)) bad('test_secret_key', 'A chave secreta deve começar com sk_.');
 
     if ($('product_name').value.trim().length < 2) bad('product_name', 'Informe o produto.');
     if (amountCents() < 100) bad('amount', 'Valor mínimo R$ 1,00.');

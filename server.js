@@ -16,7 +16,7 @@ function getSecretKey() {
   return k && k.trim() ? k.trim() : null;
 }
 
-const TEST_SECRET_RE = /^sk_test_[A-Za-z0-9_-]+$/;
+const TEST_SECRET_RE = /^sk_[A-Za-z0-9_-]+$/; // aceita chave de teste (sk_test_...) e de produção (sk_...)
 
 // Remove qualquer ocorrência do segredo de um valor (string ou estrutura), para nunca ecoá-lo.
 function scrubSecret(value, secret) {
@@ -250,7 +250,7 @@ function takeRequestSecret(body) {
     return {
       secret: null,
       testMode: false,
-      error: 'Use apenas uma chave secreta de TESTE (prefixo sk_test_).',
+      error: 'Chave secreta inválida (precisa começar com sk_).',
     };
   }
   return { secret: raw, testMode: true, error: null };
