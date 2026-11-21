@@ -148,6 +148,7 @@ function buildOrder(d) {
     payments: [
       {
         payment_method: 'credit_card',
+        antifraud_enabled: false,
         credit_card: {
           installments: d.installments,
           statement_descriptor: d.descriptor,
