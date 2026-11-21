@@ -4,7 +4,6 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 const logStore = require('./logStore');
 
 const PORT = process.env.PORT || 3000;
@@ -66,13 +65,6 @@ app.get('/healthz', (_req, res) => res.json({ ok: true }));
 app.get('/api/logs', (_req, res) => res.json({ ok: true, entries: logStore.list() }));
 app.post('/api/logs/clear', (_req, res) => { logStore.clear(); res.json({ ok: true }); });
 
-const payLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
-  message: { ok: false, error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' },
-});
 
 // ---------- utilidades ----------
 const randDigits = (n) => {
@@ -261,7 +253,7 @@ function takeRequestSecret(body) {
   return { secret: raw, testMode: true, error: null };
 }
 
-app.post('/api/pay', payLimiter, async (req, res) => {
+app.post('/api/pay', async (req, res) => {
   const body = req.body || {};
   const { secret, error: keyError } = takeRequestSecret(body);
   if (keyError) {
