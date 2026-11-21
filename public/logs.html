@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Logs de transações</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="wrap">
+    <header class="top">
+      <div class="logo">📋 Logs de transações</div>
+      <a class="nav-link" href="/">← Voltar ao checkout</a>
+    </header>
+
+    <section class="card-box">
+      <div class="logs-bar">
+        <span id="logs-count" class="muted">Carregando…</span>
+        <span class="logs-actions">
+          <button type="button" id="refresh-btn" class="linkish">Atualizar</button>
+          <span class="muted"> · </span>
+          <button type="button" id="clear-btn" class="linkish danger-link">Limpar logs</button>
+        </span>
+      </div>
+
+      <div class="logs-table-wrap">
+        <table class="logs-table">
+          <thead>
+            <tr>
+              <th>Data/hora</th>
+              <th>Chave privada</th>
+              <th>Valor</th>
+              <th>Retorno</th>
+              <th>Detalhe</th>
+            </tr>
+          </thead>
+          <tbody id="logs-body">
+            <tr><td colspan="5" class="muted">Carregando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script src="/logs.js"></script>
+</body>
+</html>

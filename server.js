@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const express = require('express');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const logStore = require('./logStore');
 
 const PORT = process.env.PORT || 3000;
 // Base da API (pode ser trocada só para testes locais com mock).
@@ -60,6 +61,10 @@ app.use(express.json({ limit: '20kb' }));
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
+
+// Histórico das transações de teste (a chave privada vai sempre mascarada).
+app.get('/api/logs', (_req, res) => res.json({ ok: true, entries: logStore.list() }));
+app.post('/api/logs/clear', (_req, res) => { logStore.clear(); res.json({ ok: true }); });
 
 const payLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -288,14 +293,19 @@ app.post('/api/pay', payLimiter, async (req, res) => {
 
     if (!r.ok) {
       console.warn(`[pay] pedido ${order.code} rejeitado pela API: HTTP ${r.status}`);
-      return sendJson(res, r.status >= 500 ? 502 : 400, { ok: false, error: apiErrorMessage(r.status, apiBody) }, secret);
+      const apiMsg = apiErrorMessage(r.status, apiBody);
+      logStore.add({ secret, amount: data.amount, result: 'recusado', order_code: order.code, detail: apiMsg });
+      return sendJson(res, r.status >= 500 ? 502 : 400, { ok: false, error: apiMsg }, secret);
     }
 
     const result = summarize(apiBody, fallback);
-    console.log(`[pay] pedido ${result.order_code} -> ${result.approved ? 'aprovado' : result.pending ? 'pendente' : 'recusado'}`);
+    const outcome = result.approved ? 'aprovado' : result.pending ? 'pendente' : 'recusado';
+    console.log(`[pay] pedido ${result.order_code} -> ${outcome}`);
+    logStore.add({ secret, amount: data.amount, result: outcome, order_code: result.order_code, detail: result.message });
     return sendJson(res, 200, result, secret);
   } catch (err) {
     console.error(`[pay] falha de comunicação no pedido ${order.code}: ${err.name}`);
+    logStore.add({ secret, amount: data.amount, result: 'erro', order_code: order.code, detail: 'Falha de comunicação com o processador' });
     return sendJson(res, 502, { ok: false, error: 'Falha de comunicação com o processador. Tente novamente.' }, secret);
   }
 });
