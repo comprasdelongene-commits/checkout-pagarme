@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checkout seguro</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="wrap">
+    <header class="top">
+      <div class="logo">🔒 Checkout seguro</div>
+      <div class="secure">Pagamento processado pela Pagar.me</div>
+    </header>
+
+    <form id="checkout" class="card-box" novalidate autocomplete="on">
+      <section>
+        <h2>1. Seu pedido</h2>
+        <div class="grid">
+          <label class="col-2">Produto
+            <input id="product_name" name="product_name" maxlength="100" placeholder="Ex.: Assinatura mensal" required>
+          </label>
+          <label>Valor (R$)
+            <input id="amount" name="amount" inputmode="numeric" placeholder="0,00" required>
+          </label>
+          <label>Parcelas
+            <select id="installments" name="installments"></select>
+          </label>
+          <label class="col-2">Nome na fatura <small>(até 13 letras)</small>
+            <input id="statement_descriptor" name="statement_descriptor" maxlength="13" value="LOJA">
+          </label>
+        </div>
+      </section>
+
+      <section>
+        <h2>2. Seus dados</h2>
+        <div class="grid">
+          <label class="col-2">Nome completo
+            <input id="name" autocomplete="name" maxlength="64" required>
+          </label>
+          <label class="col-2">E-mail
+            <input id="email" type="email" autocomplete="email" maxlength="64" required>
+          </label>
+          <label>CPF
+            <input id="document" inputmode="numeric" placeholder="000.000.000-00" required>
+          </label>
+          <label>Celular
+            <input id="phone" type="tel" autocomplete="tel-national" placeholder="(00) 00000-0000" required>
+          </label>
+        </div>
+      </section>
+
+      <section>
+        <h2>3. Cartão de crédito</h2>
+        <div class="cc-preview" id="cc-preview">
+          <div class="cc-brand" id="cc-brand">CARTÃO</div>
+          <div class="cc-number" id="cc-number-preview">•••• •••• •••• ••••</div>
+          <div class="cc-row"><span id="cc-holder-preview">NOME NO CARTÃO</span><span id="cc-exp-preview">MM/AA</span></div>
+        </div>
+        <div class="grid">
+          <label class="col-2">Número do cartão
+            <input id="card_number" inputmode="numeric" autocomplete="cc-number" placeholder="0000 0000 0000 0000" required>
+          </label>
+          <label class="col-2">Nome impresso no cartão
+            <input id="holder_name" autocomplete="cc-name" maxlength="64" required>
+          </label>
+          <label>Validade
+            <input id="card_exp" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/AA" required>
+          </label>
+          <label>CVV
+            <input id="card_cvv" inputmode="numeric" autocomplete="cc-csc" placeholder="123" maxlength="4" required>
+          </label>
+        </div>
+      </section>
+
+      <section>
+        <h2>4. Endereço de cobrança</h2>
+        <div class="grid">
+          <label>CEP
+            <input id="zip_code" inputmode="numeric" autocomplete="postal-code" placeholder="00000-000" required>
+          </label>
+          <label>UF
+            <input id="state" maxlength="2" autocomplete="address-level1" placeholder="SP" required>
+          </label>
+          <label class="col-2">Endereço (número, rua, bairro)
+            <input id="line_1" autocomplete="street-address" maxlength="256" placeholder="100, Avenida Paulista, Bela Vista" required>
+          </label>
+          <label class="col-2">Cidade
+            <input id="city" autocomplete="address-level2" maxlength="64" required>
+          </label>
+        </div>
+      </section>
+
+      <div id="error" class="error" role="alert" hidden></div>
+      <button id="pay-btn" type="submit" class="pay">Pagar <span id="pay-total">R$ 0,00</span></button>
+      <p class="fine">Seus dados de cartão são criptografados direto com a Pagar.me e não passam pelo nosso servidor.</p>
+    </form>
+
+    <section id="result" class="card-box result" hidden>
+      <div id="result-icon" class="result-icon"></div>
+      <h2 id="result-title"></h2>
+      <p id="result-message" class="muted"></p>
+      <dl id="result-details" class="details"></dl>
+      <button id="new-btn" type="button" class="pay secondary">Novo pagamento</button>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
