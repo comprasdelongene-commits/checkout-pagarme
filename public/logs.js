@@ -64,5 +64,12 @@ async function load() {
 }
 
 document.getElementById('refresh-btn').addEventListener('click', load);
+document.getElementById('clear-btn').addEventListener('click', async () => {
+  if (!confirm('Apagar todos os logs?')) return;
+  try {
+    await fetch('/api/logs/clear', { method: 'POST' });
+  } catch (_) {}
+  load();
+});
 
 load();
